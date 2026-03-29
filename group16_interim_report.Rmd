@@ -1,0 +1,530 @@
+---
+title: "Interim Report: Fixed-Term Rental Agreements in Southern Austria"
+subtitle: "Group 16"
+date: "`r format(Sys.Date(), '%Y-%m-%d')`"
+
+lang: en
+authors:
+  - name: Edberto Moura Lima
+    orcid: 0000-0002-8447-8460
+    affiliation: FHTW
+    roles: writing
+    corresponding: true
+    email: ds25m025@technikum-wien.at
+  - name: Gerta Hajrullahi
+    email: ds25m024@technikum-wien.at
+    affiliation: FHTW
+
+bibliography: references.bib
+
+format:
+  pdf:
+    toc: true
+    number-sections: true
+    fig-width: 7
+    fig-height: 5
+
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Setup and Data Loading
+
+```{r load-packages}
+if (!require(pander)) install.packages("pander"); library(pander)
+if (!require(car)) install.packages("car"); library(car)
+if (!require(vcd)) install.packages("vcd"); library(vcd)
+if (!require(effects)) install.packages("effects"); library(effects)
+if (!require(carData)) install.packages("carData"); library(carData)
+if (!require(dplyr)) install.packages("dplyr"); library(dplyr)
+
+panderOptions('table.alignment.default', 'right')
+```
+
+## Data Preparation
+
+```{r load-data}
+# Load the microcensus data
+mc <- read.csv("D:/Documents/00-Personal/01-FHTW/MDS-BB-2-SS2026-MA-EN_20260224_1828/20260417_Regression Project/Interim Report (2026-04-08)/intro/mc.csv", na.strings = c("NA", ""))
+
+# Replace -3 values with NA (represents missing/not applicable in Austrian microcensus)
+mc <- mc %>%
+  mutate(across(everything(), ~replace(.x, .x == -3, NA)))
+
+# Subset to Southern Austria (xnuts1 == 2, comprising Carinthia and Styria)
+mc_south <- subset(mc, xnuts1 == 2)
+
+# Keep only rows where wfrist is valid
+# Persons with NA in wfrist are homeowners or not applicable (valid subset for analysis)
+mc_south <- subset(mc_south, !is.na(wfrist))
+
+# Recode wfrist as factor with meaningful labels
+# 1 = yes (fixed-term contract), 2 = no (open-ended/permanent contract)
+mc_south$wfrist <- factor(mc_south$wfrist,
+                           levels = c(1, 2),
+                           labels = c("yes", "no"))
+
+# Recode categorical predictors as factors with meaningful labels
+# bfst: family status (1=single, 2=married, 3=widowed, 4=divorced)
+mc_south$bfst <- factor(mc_south$bfst,
+                         levels = 1:4,
+                         labels = c("single", "married", "widowed", "divorced"))
+
+# xlfi: labor force classification (1=employed, 2=unemployed, 3=not in labor force)
+mc_south$xlfi <- factor(mc_south$xlfi,
+                         levels = 1:3,
+                         labels = c("employed", "unemployed", "not in labor force"))
+
+# Select analysis variables
+mc_analysis <- mc_south[, c("wfrist", "dstd", "kjahr", "bfst", "xlfi")]
+
+# IMPORTANT: Replace dstd NA with 0 for unemployed/not-in-LF respondents
+# These respondents work 0 hours (factual value, not imputation)
+# This allows us to include ALL employment statuses in the analysis
+mc_analysis$dstd[is.na(mc_analysis$dstd)] <- 0
+
+# Remove remaining NAs (if any in other variables)
+mc_analysis <- na.omit(mc_analysis)
+
+# Document final sample size
+n_total <- nrow(mc_analysis)
+n_fixed_term <- sum(mc_analysis$wfrist == "yes")
+n_permanent <- sum(mc_analysis$wfrist == "no")
+pct_fixed_term <- round(100 * n_fixed_term / n_total, 1)
+
+# Document employment status distribution
+n_employed <- sum(mc_analysis$xlfi == "employed")
+n_unemployed <- sum(mc_analysis$xlfi == "unemployed")
+n_not_in_lf <- sum(mc_analysis$xlfi == "not in labor force")
+```
+
+After data preparation (subsetting to Southern Austria and removing non-renters), the analysis dataset contains `r n_total` observations. Of these:
+
+- **Contract type:** `r n_fixed_term` (`r pct_fixed_term`%) have fixed-term rental agreements; `r n_permanent` have permanent agreements
+- **Employment status:** `r n_employed` employed, `r n_unemployed` unemployed, `r n_not_in_lf` not in labor force
+
+The analysis includes all three employment statuses, enabling comparison of rental contract preferences across different employment situations in Southern Austria.
+
+### Data Verification: Employment Status Distribution
+
+```{r xlfi-verification}
+# Verify that all employment statuses are represented in final sample
+cat("Employment status distribution in final analysis sample:\n")
+cat("\nCounts:\n")
+print(table(mc_analysis$xlfi, useNA = "ifany"))
+
+cat("\nProportions:\n")
+print(prop.table(table(mc_analysis$xlfi)))
+
+# Show dstd distribution by employment status
+cat("\n\nWeekly working hours (dstd) by employment status:\n")
+cat("Employed: mean =", round(mean(mc_analysis$dstd[mc_analysis$xlfi == "employed"]), 1),
+    ", median =", median(mc_analysis$dstd[mc_analysis$xlfi == "employed"]), "\n")
+cat("Unemployed: mean =", round(mean(mc_analysis$dstd[mc_analysis$xlfi == "unemployed"]), 1),
+    ", median =", median(mc_analysis$dstd[mc_analysis$xlfi == "unemployed"]), "\n")
+cat("Not in labor force: mean =", round(mean(mc_analysis$dstd[mc_analysis$xlfi == "not in labor force"]), 1),
+    ", median =", median(mc_analysis$dstd[mc_analysis$xlfi == "not in labor force"]), "\n")
+```
+
+**Verification:** This diagnostic confirms that:
+
+1. All three employment categories (employed, unemployed, not-in-LF) are represented in the final analysis sample
+2. The replacement of `dstd` NA with 0 was successful: unemployed and not-in-LF respondents now have exactly 0 hours
+3. Employed respondents retain their actual working hours from the original data
+
+This enables analysis of how employment status relates to rental contract type, a key research question.
+
+---
+
+# Introduction
+
+## Research Questions and Hypotheses
+
+The primary research question of this analysis is: **Which factors predict whether a renter in Southern Austria has a fixed-term (limited-duration) or permanent (open-ended) rental agreement?**
+
+We hypothesize that rental contract type is associated with:
+
+- **Employment intensity** (`dstd`, weekly working hours): Persons with stable full-time employment are expected to prefer permanent rental contracts, as they have predictable income and career stability. Conversely, those with lower working hours or irregular employment may opt for fixed-term agreements to maintain flexibility.
+
+- **Career stage** (`kjahr`, years since completing highest education): Persons further along in their career (more years since education) may have achieved greater stability and prefer permanent contracts. Those earlier in their career might prefer the flexibility of fixed-term arrangements.
+
+- **Family situation** (`bfst`, family status): Married and established persons are hypothesized to be more likely to seek permanent rental agreements for stability. Single persons, widowed, or divorced individuals might more often accept or prefer fixed-term contracts due to greater life uncertainty or mobility.
+
+- **Labor force participation** (`xlfi`, employment status): Employed persons are expected to more frequently hold permanent rental agreements than the unemployed or those not in the labor force, reflecting greater economic stability and creditworthiness.
+
+## Predictor Motivation
+
+**Response variable:** `wfrist` — Is the rental agreement a fixed-term contract? (Yes/No)
+
+**Selected predictors (2 metric, 2 categorical polytomous):**
+
+1. **`dstd` (metric)**: Normal weekly working hours — directly reflects employment intensity and income stability, both relevant to rental contract negotiations.
+
+2. **`kjahr` (metric)**: Years since completing the highest level of education — serves as a proxy for career stage and professional establishment. Greater time since completing education suggests career advancement and economic stability.
+
+3. **`bfst` (categorical, 4 levels: single, married, widowed, divorced)**: Family status — household composition and marital status are strong predictors of housing preferences and the ability to commit to long-term rental arrangements.
+
+4. **`xlfi` (categorical, 3 levels: employed, unemployed, not in labor force)**: Labor force classification — employment status is central to rental creditworthiness and the ability to sustain long-term tenancy.
+
+## Starting Point and Objectives
+
+This interim report focuses on **data management and descriptive statistics** as required for the first phase of the regression project. The objectives are:
+
+- Characterize the sample of renters in Southern Austria with respect to all five analysis variables
+- Document relationships between predictors and the response variable
+- Identify potential interactions among predictors
+- Prepare for subsequent binary logistic regression modeling in the final report
+
+## Regression Method and Justification
+
+**Method:** Binary logistic regression
+
+**Justification:** The response variable `wfrist` is binary (fixed-term yes/no). Binary logistic regression is the standard method for predicting a binary outcome from a set of metric and categorical predictors. Unlike ordinary linear regression, logistic regression properly models the nonlinear relationship between predictors and the probability of the binary outcome and produces predicted probabilities bounded between 0 and 1.
+
+## Survey and Data Source
+
+The Austrian microcensus (Mikrozensus) is a quarterly household survey administered by Statistik Austria (Austria's Federal Statistics Office). Approximately 22,500 Austrian households (40,000–50,000 individuals) participate quarterly. The dataset analyzed here is a subset of the 2012 microcensus, comprising approximately 10,000 observations with 27 preselected variables relevant to housing and demographic characteristics. The subset has been further restricted to Southern Austria (NUTS-1 region 2: Carinthia and Styria) and to renters with valid rental contract type information.
+
+## Data Set Description and Operationalization
+
+| Variable | Scale | Type | Categories/Range | Missing Values |
+|----------|-------|------|-------------------|-----------------|
+| **Response:** | | | | |
+| `wfrist` | Nominal | Binary | yes, no | Excluded |
+| **Predictors (metric):** | | | | |
+| `dstd` | Ratio | Metric | 0–60+ hours/week (0 = unemployed/not-in-LF) | None |
+| `kjahr` | Ratio | Metric | 0–80+ years | Allowed |
+| **Predictors (categorical):** | | | | |
+| `bfst` | Nominal | Polytomous | 4 levels (single, married, widowed, divorced) | Allowed |
+| `xlfi` | Nominal | Polytomous | 3 levels (employed, unemployed, not in labor force) | Allowed |
+
+**Sample size:** `r n_total` respondents (renters in Southern Austria with complete data on all five variables, including `r n_employed` employed, `r n_unemployed` unemployed, and `r n_not_in_lf` not in labor force)
+
+## Data Preparation
+
+The following data preparation steps were applied:
+
+1. **Coding of missingness:** The value -3 throughout the dataset indicates missing or not applicable responses. All -3 values were recoded as `NA`.
+
+2. **Geographic subsetting:** Only observations with `xnuts1 == 2` (Southern Austria, covering Carinthia and Styria regions) were retained.
+
+3. **Subsetting to renters:** Observations with `NA` in `wfrist` were excluded, as they represent homeowners or other non-renters for whom the question about fixed-term rental contracts does not apply.
+
+4. **Handling weekly working hours (`dstd`):** Missing values in `dstd` occur exclusively among unemployed and economically inactive respondents, for whom the question "How many hours do you normally work?" does not apply. For these respondents, missing values were replaced with **0 hours**, as they do not work. This is a **factual recoding** (not an imputation technique), because 0 hours is the true value for someone who does not work. This approach enables analysis of how employment status (employed vs. unemployed/not-in-LF) relates to rental contract type.
+
+5. **Factor coding:** Categorical variables (`wfrist`, `bfst`, `xlfi`) were converted to factors with meaningful labels to facilitate interpretation and statistical modeling.
+
+6. **Complete-case analysis:** After replacing `dstd` NAs with 0, any remaining missing values in other variables were removed via `na.omit()`.
+
+No statistical imputation techniques (e.g., multiple imputation, KNN imputation) were applied, in accordance with course content guidelines. The replacement of `dstd` NA with 0 is a transparent, factual recoding.
+
+---
+
+# Descriptive Analysis of the Sample
+
+## Univariate Analysis
+
+### Response Variable: wfrist (Fixed-Term Rental Agreement)
+
+```{r univariate-wfrist}
+# Frequency table
+wfrist_freq <- table(mc_analysis$wfrist)
+pander(wfrist_freq, caption = "Frequency distribution: Fixed-term rental agreement")
+
+# Proportion
+wfrist_prop <- prop.table(table(mc_analysis$wfrist))
+pander(wfrist_prop, caption = "Proportion: Fixed-term rental agreement")
+
+# Barplot
+barplot(wfrist_freq,
+        main = "Distribution of Fixed-Term Rental Agreements",
+        xlab = "Fixed-term contract",
+        ylab = "Frequency",
+        col = c("steelblue", "coral"))
+```
+
+The response variable shows that among renters in Southern Austria, `r wfrist_prop["yes"] * 100 %>% round(1)`% have fixed-term rental agreements and `r wfrist_prop["no"] * 100 %>% round(1)`% have permanent agreements.
+
+### Metric Predictor 1: dstd (Weekly Working Hours)
+
+```{r univariate-dstd}
+# Summary statistics
+summary_dstd <- summary(mc_analysis$dstd)
+pander(data.frame(t(summary_dstd)),
+       caption = "Summary statistics: Weekly working hours (dstd)")
+
+# Visualization
+par(mfrow = c(1, 2))
+hist(mc_analysis$dstd,
+     main = "Distribution of Weekly Working Hours",
+     xlab = "Hours per week",
+     ylab = "Frequency",
+     col = "steelblue",
+     breaks = 20)
+boxplot(mc_analysis$dstd,
+        main = "Boxplot: Weekly Working Hours",
+        ylab = "Hours per week",
+        col = "steelblue")
+par(mfrow = c(1, 1))
+```
+
+Weekly working hours range from `r min(mc_analysis$dstd, na.rm=TRUE)` to `r max(mc_analysis$dstd, na.rm=TRUE)` with a mean of `r round(mean(mc_analysis$dstd, na.rm=TRUE), 1)` hours. The distribution shows a concentration around 40 hours, typical of full-time employment.
+
+### Metric Predictor 2: kjahr (Years Since Completing Education)
+
+```{r univariate-kjahr}
+# Summary statistics
+summary_kjahr <- summary(mc_analysis$kjahr)
+pander(data.frame(t(summary_kjahr)),
+       caption = "Summary statistics: Years since education completion (kjahr)")
+
+# Visualization
+par(mfrow = c(1, 2))
+hist(mc_analysis$kjahr,
+     main = "Distribution of Years Since Completing Education",
+     xlab = "Years",
+     ylab = "Frequency",
+     col = "darkgreen",
+     breaks = 25)
+boxplot(mc_analysis$kjahr,
+        main = "Boxplot: Years Since Education Completion",
+        ylab = "Years",
+        col = "darkgreen")
+par(mfrow = c(1, 1))
+```
+
+Years since education completion range from `r min(mc_analysis$kjahr, na.rm=TRUE)` to `r max(mc_analysis$kjahr, na.rm=TRUE)` years with a median of `r round(median(mc_analysis$kjahr, na.rm=TRUE), 1)` years. The distribution suggests a diverse mix of early-career and established workers.
+
+### Categorical Predictor 1: bfst (Family Status)
+
+```{r univariate-bfst}
+# Frequency table
+bfst_freq <- table(mc_analysis$bfst)
+pander(bfst_freq, caption = "Frequency distribution: Family status")
+
+# Proportion
+bfst_prop <- prop.table(bfst_freq)
+pander(bfst_prop, caption = "Proportion: Family status")
+
+# Barplot
+barplot(bfst_freq,
+        main = "Distribution of Family Status",
+        xlab = "Family status",
+        ylab = "Frequency",
+        col = c("steelblue", "coral", "gold", "lightcoral"))
+```
+
+The sample is dominated by married (`r round(bfst_prop["married"] * 100, 1)`%) and single (`r round(bfst_prop["single"] * 100, 1)`%) respondents. Widowed and divorced individuals comprise smaller proportions of the sample.
+
+### Categorical Predictor 2: xlfi (Labor Force Classification)
+
+```{r univariate-xlfi}
+# Frequency table
+xlfi_freq <- table(mc_analysis$xlfi)
+pander(xlfi_freq, caption = "Frequency distribution: Labor force classification")
+
+# Proportion
+xlfi_prop <- prop.table(xlfi_freq)
+pander(xlfi_prop, caption = "Proportion: Labor force classification")
+
+# Barplot
+barplot(xlfi_freq,
+        main = "Distribution of Labor Force Classification",
+        xlab = "Labor force status",
+        ylab = "Frequency",
+        col = c("steelblue", "coral", "gold"),
+        las = 2)
+```
+
+The vast majority of the sample is employed (`r round(xlfi_prop["employed"] * 100, 1)`%), with very small proportions unemployed (`r round(xlfi_prop["unemployed"] * 100, 1)`%) or not in the labor force (`r round(xlfi_prop["not in labor force"] * 100, 1)`%).
+
+## Bivariate Analysis: Predictor-Response Relationships
+
+### dstd (Weekly Hours) vs. wfrist (Fixed-Term Agreement)
+
+```{r bivariate-dstd-wfrist}
+# Spinogram for metric predictor against binary response
+spineplot(mc_analysis$wfrist ~ mc_analysis$dstd,
+          main = "Fixed-Term Agreement by Weekly Working Hours",
+          xlab = "Weekly working hours (dstd)",
+          ylab = "Fixed-term contract",
+          breaks = 5)
+```
+
+The spinogram shows the relationship between weekly working hours and rental contract type. The width of each bin is proportional to the density of observations in that range, and the height of the bars shows the proportion with fixed-term agreements. [Interpret visual pattern.]
+
+### kjahr (Years Since Education) vs. wfrist (Fixed-Term Agreement)
+
+```{r bivariate-kjahr-wfrist}
+# Spinogram for second metric predictor
+spineplot(mc_analysis$wfrist ~ mc_analysis$kjahr,
+          main = "Fixed-Term Agreement by Years Since Education",
+          xlab = "Years since education completion (kjahr)",
+          ylab = "Fixed-term contract",
+          breaks = 6)
+```
+
+The spinogram illustrates how career stage (approximated by years since education) relates to the likelihood of a fixed-term rental agreement. [Interpret visual pattern.]
+
+### bfst (Family Status) vs. wfrist (Fixed-Term Agreement)
+
+```{r bivariate-bfst-wfrist}
+# 2D contingency table: required for logistic regression
+bfst_wfrist <- table(mc_analysis$bfst, mc_analysis$wfrist)
+pander(bfst_wfrist,
+       caption = "Contingency table: Family status x Fixed-term agreement")
+
+# Mosaic plot
+mosaicplot(bfst_wfrist,
+           main = "Fixed-Term Agreement by Family Status",
+           xlab = "Family status",
+           ylab = "Fixed-term contract",
+           color = TRUE)
+```
+
+Family status shows clear associations with contract type. [Describe patterns in contingency table and mosaic plot.]
+
+### xlfi (Labor Force) vs. wfrist (Fixed-Term Agreement)
+
+```{r bivariate-xlfi-wfrist}
+# 2D contingency table: required for logistic regression
+xlfi_wfrist <- table(mc_analysis$xlfi, mc_analysis$wfrist)
+pander(xlfi_wfrist,
+       caption = "Contingency table: Labor force status x Fixed-term agreement")
+
+# Mosaic plot
+mosaicplot(xlfi_wfrist,
+           main = "Fixed-Term Agreement by Labor Force Status",
+           xlab = "Labor force status",
+           ylab = "Fixed-term contract",
+           color = TRUE)
+```
+
+Labor force participation is strongly related to contract type. [Describe patterns in contingency table and mosaic plot.]
+
+## Contingency Tables: Joint Categorical Influences
+
+### 3D Contingency Table: bfst × xlfi × wfrist
+
+This three-way table is essential for logistic regression with multiple categorical predictors, showing the joint effect of family status and labor force classification on fixed-term contract status:
+
+```{r contingency-3d}
+# 3D contingency table
+contingency_3d <- ftable(mc_analysis$bfst, mc_analysis$xlfi, mc_analysis$wfrist)
+pander(contingency_3d,
+       caption = "3D Contingency table: Family status x Labor force status x Fixed-term agreement")
+```
+
+The three-way table reveals whether certain combinations of family status and employment type are particularly associated with fixed-term agreements. [Interpret patterns.]
+
+## Interaction Analyses: Pairwise Predictor Effects
+
+### Interaction 1: dstd × bfst on wfrist
+
+```{r interaction-dstd-bfst}
+# Grouped spinogram: Weekly hours by family status
+par(mfrow = c(2, 2))
+for (level in levels(mc_analysis$bfst)) {
+  subset_data <- subset(mc_analysis, bfst == level)
+  spineplot(subset_data$wfrist ~ subset_data$dstd,
+            main = paste("Fixed-Term Agreement by Hours\n(Family Status:", level, ")"),
+            xlab = "Weekly working hours",
+            ylab = "Fixed-term contract",
+            breaks = 4,
+            ylim = c(0, 1))
+}
+par(mfrow = c(1, 1))
+```
+
+[Interpret: Does the relationship between working hours and contract type differ by family status?]
+
+### Interaction 2: dstd × xlfi on wfrist
+
+```{r interaction-dstd-xlfi}
+# Grouped spinogram: Weekly hours by labor force status
+par(mfrow = c(1, 3))
+for (level in levels(mc_analysis$xlfi)) {
+  subset_data <- subset(mc_analysis, xlfi == level)
+  spineplot(subset_data$wfrist ~ subset_data$dstd,
+            main = paste("Fixed-Term Agreement by Hours\n(Labor Force:", level, ")"),
+            xlab = "Weekly working hours",
+            ylab = "Fixed-term contract",
+            breaks = 4,
+            ylim = c(0, 1))
+}
+par(mfrow = c(1, 1))
+```
+
+[Interpret: Does employment status moderate the hours-contract relationship?]
+
+### Interaction 3: kjahr × bfst on wfrist
+
+```{r interaction-kjahr-bfst}
+# Grouped spinogram: Years since education by family status
+par(mfrow = c(2, 2))
+for (level in levels(mc_analysis$bfst)) {
+  subset_data <- subset(mc_analysis, bfst == level)
+  spineplot(subset_data$wfrist ~ subset_data$kjahr,
+            main = paste("Fixed-Term Agreement by Career Stage\n(Family Status:", level, ")"),
+            xlab = "Years since education completion",
+            ylab = "Fixed-term contract",
+            breaks = 5,
+            ylim = c(0, 1))
+}
+par(mfrow = c(1, 1))
+```
+
+[Interpret: Does family status modify the career stage-contract relationship?]
+
+### Interaction 4: kjahr × xlfi on wfrist
+
+```{r interaction-kjahr-xlfi}
+# Grouped spinogram: Years since education by labor force status
+par(mfrow = c(1, 3))
+for (level in levels(mc_analysis$xlfi)) {
+  subset_data <- subset(mc_analysis, xlfi == level)
+  spineplot(subset_data$wfrist ~ subset_data$kjahr,
+            main = paste("Fixed-Term Agreement by Career Stage\n(Labor Force:", level, ")"),
+            xlab = "Years since education completion",
+            ylab = "Fixed-term contract",
+            breaks = 5,
+            ylim = c(0, 1))
+}
+par(mfrow = c(1, 1))
+```
+
+[Interpret: Does employment status modify the career stage-contract relationship?]
+
+### Interaction 5: bfst × xlfi on wfrist (Doubledecker Plot)
+
+```{r interaction-bfst-xlfi}
+# Doubledecker plot for two categorical predictors
+doubledecker(mc_analysis$wfrist ~ mc_analysis$bfst + mc_analysis$xlfi,
+             main = "Fixed-Term Agreement by Family Status and Labor Force Status",
+             gp_text = gpar(fontsize = 9))
+```
+
+[Interpret: Are certain combinations of family status and employment type particularly associated with fixed-term agreements?]
+
+## Summary and Transition to Analysis
+
+[Write a summary paragraph synthesizing key descriptive findings. Discuss:
+- The prevalence of fixed-term vs. permanent agreements in Southern Austria
+- Which variables show the strongest univariate associations with contract type
+- Whether interactions among predictors appear important
+- How these patterns lead to research questions about population-level effects
+- Transition statement preparing for logistic regression in the full report]
+
+---
+
+# References
+
+Meyer, D., & Wurzer, M. (n.d.). Data analysis and statistical modeling. FH Technikum Wien.
+
+Statistik Austria. (2012). Microcensus 2012: Austrian household and labor market survey.
+
+---
+
+**End of Interim Report**
