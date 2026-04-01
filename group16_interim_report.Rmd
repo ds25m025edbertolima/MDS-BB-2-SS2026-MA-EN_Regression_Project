@@ -97,8 +97,6 @@ This report focuses on **data management and descriptive statistics** as the fir
 | `bfst` | Nominal | Polytomous | 3 levels (single, married, widowed/divorced) | Excluded |
 | `xeinw` | Ordinal | Polytomous | 4 levels (up to 2000, 2001–10000, 10001–100000, 100001+) | Excluded |
 
-**Sample size:** The subset relevant for our analysis consists of `r n_total` individuals.
-
 ## Data Preparation
 
 The dataset was imported and prepared for the analysis by recoding all $-3$ values as missing values `NA`. The dataset was then restricted to respondents from Southern Austria (`xnuts = 2`) and only observations with valid information on the dependent variable `wfrist` were retained. The variables used in the analysis were recoded into interpretable factor categories. In addition, only the variables relevant for the analysis were kept and remaining missing values were removed.
@@ -206,6 +204,8 @@ After data preparation the analysis dataset contains `r n_total` observations. O
 -   **Family status:** `r n_single` single individuals, `r n_married` married and `r n_widowed+n_divorced` are widowed/divorced.
 
 The analysis includes all four community sizes, enabling comparison of rental contract preferences across different groups in Southern Austria. Family status is dominated by married and single respondents, with a small combined category of widowed/divorced. This distribution allows for meaningful analysis of how family status relates to rental contract type while avoiding issues with sparse categories.
+
+**Sample size:** The subset relevant for our analysis consists of `r n_total` individuals.
 
 # Descriptive Analysis
 
