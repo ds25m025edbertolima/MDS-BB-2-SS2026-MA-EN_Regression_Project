@@ -59,7 +59,7 @@ panderOptions('table.alignment.default', 'right')
 
 The data used in this report stem from the Austrian microcensus, a quarterly sample survey carried out by Statistik Austria. The full survey is based on randomly selected households and usually includes information on around $40000$ to $50000$ persons. However for this project only a subset of the dataset was considered.
 
-This report analyzes the probability of having a fixed-term rental contract in Southern Austria (NUTS-1 region 2: Carinthia and Styria) on the basis of austrian microcensus data from 2012. The dependent variable is `wfrist`, indicating whether the respondent has a fixed-term rental agreement or not `(yes/no)`. As explanatory variables, two metric predictors are considered: `dstd` (weekly working hours) and `kjahr` (years since completion of the highest level of education). In addition, two categorical predictors are included: `bfst - (family status: single, married, widowed/divorced)` and `xeinw - (community size: up to 2000 (small-S), 2001–10000 (medium-M), 10001–100000 (large-L), 100001+ (very large-VL))`.
+This report analyzes the probability of having a fixed-term rental contract in Southern Austria (NUTS-1 region 2: Carinthia and Styria) on the basis of austrian microcensus data from 2012. The dependent variable is `wfrist`, indicating whether the respondent has a fixed-term rental agreement or not `(yes/no)`. As explanatory variables, two metric predictors are considered: `dstd` (weekly working hours) and `kjahr` (years since completion of the highest level of education). In addition, two categorical predictors are included: `bfst - (family status: single, married, widowed/divorced)` and `xeinw - (community size: up to 2000 (small-S), 2001-10000 (medium-M), 10001-100000 (large-L), 100001+ (very large-VL))`.
 
 The predictors were selected because they capture different characteristics that may be related to rental contract type. Weekly working hours (`dstd`) reflect the individuals’s labor-market situation, years since education completion (`kjahr`) indicate their position in the life course, family status (`bfst`) represents the household and partnership situation and community size (`xeinw`) captures differences in the local housing context.
 
@@ -97,14 +97,14 @@ This report focuses on **data management and descriptive statistics** as the fir
 | `kjahr` | Ratio | Metric | years since completing highest education | Excluded |
 | **Predictors (categorical):** |  |  |  |  |
 | `bfst` | Nominal | Polytomous | 3 levels (single, married, widowed/divorced) | Excluded |
-| `xeinw` | Ordinal | Polytomous | 4 levels (up to 2000, 2001–10000, 10001–100000, 100001+) | Excluded |
+| `xeinw` | Ordinal | Polytomous | 4 levels (up to 2000, 2001-10000, 10001-100000, 100001+) | Excluded |
 
 ## Data Preparation
 
 The dataset was imported and prepared for the analysis by recoding all $-3$ values as missing values `NA`. The dataset was then restricted to respondents from Southern Austria (`xnuts = 2`) and only observations with valid information on the dependent variable `wfrist` were retained. The variables used in the analysis were recoded into interpretable factor categories. In addition, only the variables relevant for the analysis were kept and remaining missing values were removed.
 
 ```{r load-data}
-mc <- read.csv("D:/Documents/00-Personal/01-FHTW/MDS-BB-2-SS2026-MA-EN_20260224_1828/20260417_Regression Project/Interim Report (2026-04-08)/intro/mc.csv",
+mc <- read.csv("C://Users//Gerta Hajrullahi//Desktop//MDS//SS26//MA//Project//Dataset//mc.csv",
                na.strings = c("NA", ""))
 
 # Replace -3 values with NA
@@ -249,7 +249,7 @@ The distribution chart shows that the response variable `wfrist` is unequally di
 # Summary statistics
 summary_dstd <- summary(mc_analysis$dstd)
 dstd_sd <- sd(mc_analysis$dstd)
-cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %.0f–%.0f hours/week; mean %.2f; median %.0f; SD %.2f hours.",
+cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %.0f-%.0f hours/week; mean %.2f; median %.0f; SD %.2f hours.",
   min(mc_analysis$dstd),
   max(mc_analysis$dstd),
   mean(mc_analysis$dstd),
@@ -258,7 +258,7 @@ cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %
 )
 pander(data.frame(t(summary_dstd)), caption = cap_dstd)
 ```
-```{r univariate-dstd-fig, fig.cap="Distribution of Weekly Working Hours. (a) Histogram with density curves centered around 40 hours/week; (b) Boxplot showing outliers at both low (4–10 hours) and high (60–80 hours) employment intensity."}
+```{r univariate-dstd-fig, fig.cap="Distribution of Weekly Working Hours. (a) Histogram with density curves centered around 40 hours/week; (b) Boxplot showing outliers at both low (4-10 hours) and high (60-80 hours) employment intensity."}
 
 # Visualization
 par(mfrow = c(1, 2))
@@ -320,13 +320,14 @@ Overall, these outliers suggest variation in working intensity rather than a cle
 summary_kjahr <- summary(mc_analysis$kjahr)
 kjahr_sd <- sd(mc_analysis$kjahr)
 cap_kjahr <- sprintf(
-  "Summary statistics for years since education completion (kjahr). Range %.0f–%.0f years; mean %.2f; median %.0f; SD %.2f years.",
+  "Summary statistics for years since education completion (kjahr). Range %.0f-%.0f years; mean %.2f; median %.0f; SD %.2f years.",
   min(mc_analysis$kjahr), max(mc_analysis$kjahr), mean(mc_analysis$kjahr),
   median(mc_analysis$kjahr), kjahr_sd)
 pander(data.frame(t(summary_kjahr)), caption = cap_kjahr)
 ```
 
-```{r univariate-kjahr-fig, fig.cap=" Distribution of Years Since Completing Education. (a) Histogram with density curves showing relatively even spread across 0–66 year range; (b) Boxplot displaying moderate spread with median at center and no pronounced outliers."}
+```{r univariate-kjahr-fig, fig.cap="Distribution of Years Since Completing Education. (a) Histogram with density curves showing a broad distribution across approximately 0-44 years, with mild clustering in the lower and middle ranges and fewer observations at higher values; (b) Boxplot indicating moderate variability, a median around 18-20 years and  no pronounced outliers."}
+
 # Visualization
 par(mfrow = c(1, 2))
 hist(mc_analysis$kjahr,
@@ -334,17 +335,20 @@ hist(mc_analysis$kjahr,
      xlab = "Years",
      ylab = "Frequency",
      col = "lightgreen",
+     main = "Distribution of Years Since \nEducation Completion",
      breaks = 25)
 lines(density(mc_analysis$kjahr), lwd = 1)
 lines(density(mc_analysis$kjahr, bw = 5), lwd = 2)
+
 boxplot(mc_analysis$kjahr,
         xlab = "Years",
         horizontal = TRUE,
+        main = "Boxplot: Years Since \nEducation Completion",
         col = "lightgreen")
 par(mfrow = c(1, 1))
 ```
 
-The distribution of years since completing education is fairly broad and does not show a strong concentration in one narrow range. The histogram suggests a relatively even spread across the lower and middle values, with a slight decline toward the higher end of the scale. The density curve does not indicate a perfectly symmetric distribution and suggests mild irregularities across the range of observed values. The boxplot supports this impression: the median lies roughly in the middle of the distribution, the spread is moderate, and no pronounced outliers are visible. Overall, the variable shows considerable heterogeneity in time since educational completion, but no extreme or highly unusual values.
+The distribution of years since completing education is broad, covering approximately 0 to 44 years and  is not concentrated within a narrow interval. The histogram suggests a fairly wide spread of values, with mild clustering in the lower and middle ranges and a gradual decline toward the higher end. The density curves indicate slight irregularities rather than a perfectly symmetric shape. The boxplot supports this interpretation, showing moderate variability, a median around the center of the distribution and  no pronounced outliers. Overall, the variable reflects substantial heterogeneity in time since educational completion, without evidence of extreme or highly unusual values.
 
 ### Categorical Predictor 1: bfst (Family Status)
 
@@ -380,7 +384,7 @@ Family status is unevenly distributed in the sample. The majority of respondents
 # Frequency table
 xeinw_freq <- table(mc_analysis$xeinw)
 cap_xeinw_freq <- sprintf(
-  "Frequency distribution of community size. Small (≤2000): %d; medium (2001–10000): %d; large (10001–100000): %d; very large (>100000): %d (N = %d).",
+  "Frequency distribution of community size. Small (up to 2000): %d; medium (2001-10000): %d; large (10001-100000): %d; very large (>100000): %d (N = %d).",
   xeinw_freq[1], xeinw_freq[2], xeinw_freq[3], xeinw_freq[4], sum(xeinw_freq))
 pander(xeinw_freq, caption = cap_xeinw_freq)
 
@@ -392,7 +396,7 @@ cap_xeinw_prop <- sprintf(
 pander(xeinw_prop, caption = cap_xeinw_prop)
 ```
 
-```{r univariate-xlfi-fig, fig.cap=sprintf("Distribution of Community Size Classification Among Southern Austrian Renters. Bar chart showing large communities (10001–100000) house %.1f%% of renters, medium (2001–10000) %.1f%%, very large (>100000) %.1f%%, small (≤2000) %.1f%%.", xeinw_prop[[3]]*100, xeinw_prop[[2]]*100, xeinw_prop[[4]]*100, xeinw_prop[[1]]*100)}
+```{r univariate-xlfi-fig, fig.cap=sprintf("Distribution of Community Size Classification Among Southern Austrian Renters. Bar chart showing large communities (10001-100000) house %.1f%% of renters, medium (2001-10000) %.1f%%, very large (>100000) %.1f%%, small (up to 2000) %.1f%%.", xeinw_prop[[3]]*100, xeinw_prop[[2]]*100, xeinw_prop[[4]]*100, xeinw_prop[[1]]*100)}
 # Barplot
 bp <- barplot(xeinw_freq,
               ylab = "Frequency",
@@ -413,7 +417,7 @@ Community size is unevenly distributed in the sample. Nearly half of the respond
 
 ### dstd (Weekly Hours) vs. wfrist (Fixed-Term Agreement)
 
-```{r bivariate-dstd-wfrist, fig.cap=" Relationship between Weekly Working Hours and Fixed-Term Rental Agreements. Spinogram where bar width represents data density and height shows proportion with fixed-term agreements. Weak association indicates permanent contracts dominate across all employment intensity levels."}
+```{r bivariate-dstd-wfrist, fig.cap=" Relationship between Weekly Working Hours and Fixed-Term Rental Agreements."}
 # Spinogram for metric predictor against binary response
 spineplot(mc_analysis$wfrist ~ mc_analysis$dstd,
           xlab = "Weekly working hours (dstd)",
@@ -425,7 +429,7 @@ The spineplot indicates only a weak association between weekly working hours and
 
 ### kjahr (Years Since Education) vs. wfrist (Fixed-Term Agreement)
 
-```{r bivariate-kjahr-wfrist, fig.cap=" Relationship between Career Stage (Years Since Education) and Fixed-Term Rental Agreements. Spinogram showing weak association across career progression. Permanent contracts dominate at all career stages."}
+```{r bivariate-kjahr-wfrist, fig.cap=" Relationship between Career Stage (Years Since Education) and Fixed-Term Rental Agreements."}
 # Spinogram for second metric predictor
 spineplot(mc_analysis$wfrist ~ mc_analysis$kjahr,
           xlab = "Years since education completion (kjahr)",
@@ -446,7 +450,7 @@ cap_bfst_wfrist <- sprintf(
 pander(bfst_wfrist, caption = cap_bfst_wfrist)
 ```
 
-```{r bivariate-bfst-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Family Status. Mosaic plot showing permanent contracts dominate across all family status groups (single %.1f%%, married %.1f%%, widowed/divorced %.1f%%).", (bfst_wfrist[1,2]/sum(bfst_wfrist[1,]))*100, (bfst_wfrist[2,2]/sum(bfst_wfrist[2,]))*100, (bfst_wfrist[3,2]/sum(bfst_wfrist[3,]))*100)}
+```{r bivariate-bfst-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Family Status.")}
 # Mosaic plot
 mosaicplot(bfst_wfrist,
            xlab = "Family status",
@@ -467,7 +471,7 @@ cap_xlfi_wfrist <- sprintf(
 pander(xlfi_wfrist, caption = cap_xlfi_wfrist)
 ```
 
-```{r bivariate-xeinw-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Community Size. Mosaic plot showing permanent contracts dominate across all settlement sizes (small %.1f%%, medium %.1f%%, large %.1f%%, very large %.1f%%).", (xlfi_wfrist[1,2]/sum(xlfi_wfrist[1,]))*100, (xlfi_wfrist[2,2]/sum(xlfi_wfrist[2,]))*100, (xlfi_wfrist[3,2]/sum(xlfi_wfrist[3,]))*100, (xlfi_wfrist[4,2]/sum(xlfi_wfrist[4,]))*100)}
+```{r bivariate-xeinw-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Community Size.")}
 # Mosaic plot
 mosaicplot(xlfi_wfrist,
            xlab = "Community size",
@@ -486,7 +490,7 @@ This three-way table is essential for logistic regression with multiple categori
 ```{r contingency-3d}
 # 3D contingency table
 contingency_3d <- ftable(mc_analysis$bfst, mc_analysis$xeinw, mc_analysis$wfrist)
-cap_3d <- "Three-way Cross-tabulation of Family Status, Community Size, and Fixed-Term Rental Agreements (N = 253). Essential for logistic regression with multiple categorical predictors. Permanent contracts predominate across all family status and community size combinations."
+cap_3d <- "Three-way Cross-tabulation of Family Status, Community Size and  Fixed-Term Rental Agreements (N = 253). Essential for logistic regression with multiple categorical predictors. Permanent contracts predominate across all family status and community size combinations."
 pander(contingency_3d, caption = cap_3d)
 ```
 
@@ -502,7 +506,7 @@ Overall, the table points to some subgroup differences.
 
 ### Interaction 1: dstd × bfst on wfrist
 
-```{r interaction-dstd-bfst, fig.cap=" Interaction between Weekly Working Hours and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253). No strong interaction: permanent contracts dominate across all family status groups and working-hour ranges."}
+```{r interaction-dstd-bfst, fig.cap=" Interaction between Weekly Working Hours and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253)."}
 # Grouped spinogram: Weekly hours by family status (3 categories now)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$bfst)) {
@@ -527,7 +531,7 @@ Overall, the plots do not point to a strong interaction effect between weekly wo
 
 ### Interaction 2: dstd × xeinw on wfrist
 
-```{r interaction-dstd-xeinw, fig.cap=" Interaction between Weekly Working Hours and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253). No strong interaction: permanent contracts dominate across all community sizes, smallest communities show slightly more irregular distribution."}
+```{r interaction-dstd-xeinw, fig.cap=" Interaction between Weekly Working Hours and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253)."}
 # Grouped spinogram: Weekly hours by community size (4 categories)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$xeinw)) {
@@ -546,7 +550,7 @@ The grouped spinograms suggest that the relationship between weekly working hour
 
 ### Interaction 3: kjahr × bfst on wfrist
 
-```{r interaction-kjahr-bfst, fig.cap=" Interaction between Career Stage (Years Since Education) and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253). No strong interaction: permanent contracts predominate across all family status groups and career stages."}
+```{r interaction-kjahr-bfst, fig.cap=" Interaction between Career Stage (Years Since Education) and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms for each family status category (N = 253)."}
 # Grouped spinogram: Years since education by family status (3 categories now)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$bfst)) {
@@ -565,7 +569,7 @@ The grouped spinograms indicate that the relationship between years since educat
 
 ### Interaction 4: kjahr × xeinw on wfrist
 
-```{r interaction-kjahr-xeinw, fig.cap=" Interaction between Career Stage (Years Since Education) and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253). No strong interaction: permanent contracts predominate across all community sizes, smallest communities show more irregular patterns."}
+```{r interaction-kjahr-xeinw, fig.cap=" Interaction between Career Stage (Years Since Education) and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms for each settlement size category (N = 253)."}
 # Grouped spinogram: Years since education by community size
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$xeinw)) {
@@ -584,7 +588,7 @@ The grouped spinograms suggest that the relationship between years since educati
 
 ### Interaction 5: bfst × xeinw on wfrist (Doubledecker Plot)
 
-```{r interaction-bfst-xeinw, fig.cap=" Joint Relationship between Family Status, Community Size, and Fixed-Term Rental Agreements (Doubledecker Plot). Simultaneous display of categorical interaction (N = 253). Permanent contracts dominate across all combinations; largest subgroup is single respondents in medium-sized communities."}
+```{r interaction-bfst-xeinw, fig.cap=" Joint Relationship between Family Status, Community Size and  Fixed-Term Rental Agreements (Doubledecker Plot). Simultaneous display of categorical interaction (N = 253)."}
 mc_plot <- mc_analysis
 levels(mc_plot$bfst) <- c("single", "married", "wid/div")
 levels(mc_plot$xeinw) <- c("S", "M", "L", "VL") # S = up to 2000, M = 2001-10000, L = 10001-100000, VL = 100001+
