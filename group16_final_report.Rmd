@@ -1,5 +1,5 @@
 ---
-title: "Interim Report: Fixed-Term Rental Agreements in Southern Austria"
+title: "Final Report: Fixed-Term Rental Agreements in Southern Austria"
 subtitle: "Group 16"
 date: "`r format(Sys.Date(), '%Y-%m-%d')`"
 
@@ -55,6 +55,10 @@ if (!require(DHARMa)) install.packages("DHARMa"); library(DHARMa)
 if (!require(performance)) install.packages("performance"); library(performance)
 if (!require(see)) install.packages("see"); library(see)
 
+library(ggeffects)
+library(ggplot2)
+library(patchwork)
+
 panderOptions('table.alignment.default', 'right')
 ```
 
@@ -62,7 +66,7 @@ panderOptions('table.alignment.default', 'right')
 
 The data used in this report stem from the Austrian microcensus, a quarterly sample survey carried out by Statistik Austria. The full survey is based on randomly selected households and usually includes information on around $40000$ to $50000$ persons. However for this project only a subset of the dataset was considered.
 
-This report analyzes the probability of having a fixed-term rental contract in Southern Austria (NUTS-1 region 2: Carinthia and Styria) on the basis of austrian microcensus data from 2012. The dependent variable is `wfrist`, indicating whether the respondent has a fixed-term rental agreement or not `(yes/no)`. As explanatory variables, two metric predictors are considered: `dstd` (weekly working hours) and `kjahr` (years since completion of the highest level of education). In addition, two categorical predictors are included: `bfst - (family status: single, married, widowed/divorced)` and `xeinw - (community size: up to 2000 (small-S), 2001-10000 (medium-M), 10001-100000 (large-L), 100001+ (very large-VL))`.
+This report analyzes the probability of having a fixed-term rental contract in Southern Austria (NUTS-1 region 2: Carinthia and Styria) on the basis of austrian microcensus data from 2012. The dependent variable is `wfrist`, indicating whether the respondent has a fixed-term rental agreement or not `(yes/no)`. As explanatory variables, two metric predictors are considered: `dstd` (weekly working hours) and `kjahr` (years since completion of the highest level of education). In addition, two categorical predictors are included: `bfst - (family status: single, married, widowed/divorced)` and `xeinw - (community size: up to 2000 (small-S), 2001–10000 (medium-M), 10001–100000 (large-L), 100001+ (very large-VL))`.
 
 The predictors were selected because they capture different characteristics that may be related to rental contract type. Weekly working hours (`dstd`) reflect the individuals’s labor-market situation, years since education completion (`kjahr`) indicate their position in the life course, family status (`bfst`) represents the household and partnership situation and community size (`xeinw`) captures differences in the local housing context.
 
@@ -100,14 +104,14 @@ This report focuses on **data management and descriptive statistics** as the fir
 | `kjahr` | Ratio | Metric | years since completing highest education | Excluded |
 | **Predictors (categorical):** |  |  |  |  |
 | `bfst` | Nominal | Polytomous | 3 levels (single, married, widowed/divorced) | Excluded |
-| `xeinw` | Ordinal | Polytomous | 4 levels (up to 2000, 2001-10000, 10001-100000, 100001+) | Excluded |
+| `xeinw` | Ordinal | Polytomous | 4 levels (up to 2000, 2001–10000, 10001–100000, 100001+) | Excluded |
 
 ## Data Preparation
 
 The dataset was imported and prepared for the analysis by recoding all $-3$ values as missing values `NA`. The dataset was then restricted to respondents from Southern Austria (`xnuts = 2`) and only observations with valid information on the dependent variable `wfrist` were retained. The variables used in the analysis were recoded into interpretable factor categories. In addition, only the variables relevant for the analysis were kept and remaining missing values were removed.
 
 ```{r load-data}
-mc <- read.csv("D:/Documents/00-Personal/01-FHTW/SS2026/MDS-BB-2-SS2026-MA-EN/20260417_Regression Project/Interim Report (2026-04-08)/intro/mc.csv",
+mc <- read.csv("C:\\Users\\Gerta Hajrullahi\\Desktop\\MDS\\SS26\\MA\\Project\\Dataset\\mc.csv",
                na.strings = c("NA", ""))
 
 # Replace -3 values with NA
@@ -170,22 +174,16 @@ pander(
 ```
 
 ```{r}
-pander(
 cbind(
   Frequency = table(mc_analysis$xeinw),
   Percent = round(prop.table(table(mc_analysis$xeinw)) * 100, 1)
-),
-caption = "Distribution of community size (xeinw)."
 )
 ```
 
 ```{r}
-pander(
 cbind(
   Frequency = table(mc_analysis$bfst),
   Percent = round(prop.table(table(mc_analysis$bfst)) * 100, 1)
-),
-caption = "Distribution of family status (bfst) before recoding."
 )
 ```
 
@@ -202,12 +200,9 @@ mc_analysis$bfst <- factor(mc_analysis$bfst,
 ```
 
 ```{r}
-pander(
 cbind(
   Frequency = table(mc_analysis$bfst),
   Percent = round(prop.table(table(mc_analysis$bfst)) * 100, 1)
-),
-caption = "Distribution of family status (bfst) after recoding."
 )
 ```
 
@@ -252,7 +247,7 @@ The distribution chart shows that the response variable `wfrist` is unequally di
 # Summary statistics
 summary_dstd <- summary(mc_analysis$dstd)
 dstd_sd <- sd(mc_analysis$dstd)
-cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %.0f-%.0f hours/week; mean %.2f; median %.0f; SD %.2f hours.",
+cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %.0f–%.0f hours/week; mean %.2f; median %.0f; SD %.2f hours.",
   min(mc_analysis$dstd),
   max(mc_analysis$dstd),
   mean(mc_analysis$dstd),
@@ -261,7 +256,7 @@ cap_dstd <- sprintf("Summary statistics for weekly working hours (dstd). Range %
 )
 pander(data.frame(t(summary_dstd)), caption = cap_dstd)
 ```
-```{r univariate-dstd-fig, fig.cap="Distribution of Weekly Working Hours. (a) Histogram with density curves centered around 40 hours/week; (b) Boxplot showing outliers at both low (4-10 hours) and high (60-80 hours) employment intensity."}
+```{r univariate-dstd-fig, fig.cap="Distribution of Weekly Working Hours. (a) Histogram with density curves centered around 40 hours/week; (b) Boxplot showing outliers at both low (4–10 hours) and high (60–80 hours) employment intensity."}
 
 # Visualization
 par(mfrow = c(1, 2))
@@ -323,14 +318,13 @@ Overall, these outliers suggest variation in working intensity rather than a cle
 summary_kjahr <- summary(mc_analysis$kjahr)
 kjahr_sd <- sd(mc_analysis$kjahr)
 cap_kjahr <- sprintf(
-  "Summary statistics for years since education completion (kjahr). Range %.0f-%.0f years; mean %.2f; median %.0f; SD %.2f years.",
+  "Summary statistics for years since education completion (kjahr). Range %.0f–%.0f years; mean %.2f; median %.0f; SD %.2f years.",
   min(mc_analysis$kjahr), max(mc_analysis$kjahr), mean(mc_analysis$kjahr),
   median(mc_analysis$kjahr), kjahr_sd)
 pander(data.frame(t(summary_kjahr)), caption = cap_kjahr)
 ```
 
-```{r univariate-kjahr-fig, fig.cap="Distribution of Years Since Completing Education. (a) Histogram with density curves showing a broad distribution across approximately 0-44 years, with mild clustering in the lower and middle ranges and fewer observations at higher values; (b) Boxplot indicating moderate variability, a median around 18-20 years and  no pronounced outliers."}
-
+```{r univariate-kjahr-fig, fig.cap=" Distribution of Years Since Completing Education. (a) Histogram with density curves showing relatively even spread across 0–66 year range; (b) Boxplot displaying moderate spread with median at center and no pronounced outliers."}
 # Visualization
 par(mfrow = c(1, 2))
 hist(mc_analysis$kjahr,
@@ -338,20 +332,17 @@ hist(mc_analysis$kjahr,
      xlab = "Years",
      ylab = "Frequency",
      col = "lightgreen",
-     main = "Distribution of Years Since \nEducation Completion",
      breaks = 25)
 lines(density(mc_analysis$kjahr), lwd = 1)
 lines(density(mc_analysis$kjahr, bw = 5), lwd = 2)
-
 boxplot(mc_analysis$kjahr,
         xlab = "Years",
         horizontal = TRUE,
-        main = "Boxplot: Years Since \nEducation Completion",
         col = "lightgreen")
 par(mfrow = c(1, 1))
 ```
 
-The distribution of years since completing education is broad, covering approximately 0 to 44 years and  is not concentrated within a narrow interval. The histogram suggests a fairly wide spread of values, with mild clustering in the lower and middle ranges and a gradual decline toward the higher end. The density curves indicate slight irregularities rather than a perfectly symmetric shape. The boxplot supports this interpretation, showing moderate variability, a median around the center of the distribution and  no pronounced outliers. Overall, the variable reflects substantial heterogeneity in time since educational completion, without evidence of extreme or highly unusual values.
+The distribution of years since completing education is fairly broad and does not show a strong concentration in one narrow range. The histogram suggests a relatively even spread across the lower and middle values, with a slight decline toward the higher end of the scale. The density curve does not indicate a perfectly symmetric distribution and suggests mild irregularities across the range of observed values. The boxplot supports this impression: the median lies roughly in the middle of the distribution, the spread is moderate, and no pronounced outliers are visible. Overall, the variable shows considerable heterogeneity in time since educational completion, but no extreme or highly unusual values.
 
 ### Categorical Predictor 1: bfst (Family Status)
 
@@ -387,7 +378,7 @@ Family status is unevenly distributed in the sample. The majority of respondents
 # Frequency table
 xeinw_freq <- table(mc_analysis$xeinw)
 cap_xeinw_freq <- sprintf(
-  "Frequency distribution of community size. Small (up to 2000): %d; medium (2001-10000): %d; large (10001-100000): %d; very large (>100000): %d (N = %d).",
+  "Frequency distribution of community size. Small less than 2000): %d; medium (2001–10000): %d; large (10001–100000): %d; very large (>100000): %d (N = %d).",
   xeinw_freq[1], xeinw_freq[2], xeinw_freq[3], xeinw_freq[4], sum(xeinw_freq))
 pander(xeinw_freq, caption = cap_xeinw_freq)
 
@@ -399,7 +390,7 @@ cap_xeinw_prop <- sprintf(
 pander(xeinw_prop, caption = cap_xeinw_prop)
 ```
 
-```{r univariate-xlfi-fig, fig.cap=sprintf("Distribution of Community Size Classification Among Southern Austrian Renters. Bar chart showing large communities (10001-100000) house %.1f%% of renters, medium (2001-10000) %.1f%%, very large (>100000) %.1f%%, small (up to 2000) %.1f%%.", xeinw_prop[[3]]*100, xeinw_prop[[2]]*100, xeinw_prop[[4]]*100, xeinw_prop[[1]]*100)}
+```{r univariate-xlfi-fig, fig.cap=sprintf("Distribution of Community Size Classification Among Southern Austrian Renters. Bar chart showing large communities (10001–100000) house %.1f%% of renters, medium (2001–10000) %.1f%%, very large (>100000) %.1f%%, small (less then 2000) %.1f%%.", xeinw_prop[[3]]*100, xeinw_prop[[2]]*100, xeinw_prop[[4]]*100, xeinw_prop[[1]]*100)}
 # Barplot
 bp <- barplot(xeinw_freq,
               ylab = "Frequency",
@@ -420,7 +411,7 @@ Community size is unevenly distributed in the sample. Nearly half of the respond
 
 ### dstd (Weekly Hours) vs. wfrist (Fixed-Term Agreement)
 
-```{r bivariate-dstd-wfrist, fig.cap=" Relationship between Weekly Working Hours and Fixed-Term Rental Agreements."}
+```{r bivariate-dstd-wfrist, fig.cap=" Relationship between Weekly Working Hours and Fixed-Term Rental Agreements. Spinogram where bar width represents data density and height shows proportion with fixed-term agreements. Weak association indicates permanent contracts dominate across all employment intensity levels."}
 # Spinogram for metric predictor against binary response
 spineplot(mc_analysis$wfrist ~ mc_analysis$dstd,
           xlab = "Weekly working hours (dstd)",
@@ -432,7 +423,7 @@ The spineplot indicates only a weak association between weekly working hours and
 
 ### kjahr (Years Since Education) vs. wfrist (Fixed-Term Agreement)
 
-```{r bivariate-kjahr-wfrist, fig.cap=" Relationship between Career Stage (Years Since Education) and Fixed-Term Rental Agreements."}
+```{r bivariate-kjahr-wfrist, fig.cap=" Relationship between Career Stage (Years Since Education) and Fixed-Term Rental Agreements. Spinogram showing weak association across career progression. Permanent contracts dominate at all career stages."}
 # Spinogram for second metric predictor
 spineplot(mc_analysis$wfrist ~ mc_analysis$kjahr,
           xlab = "Years since education completion (kjahr)",
@@ -453,7 +444,7 @@ cap_bfst_wfrist <- sprintf(
 pander(bfst_wfrist, caption = cap_bfst_wfrist)
 ```
 
-```{r bivariate-bfst-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Family Status.")}
+```{r bivariate-bfst-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Family Status. Mosaic plot showing permanent contracts dominate across all family status groups (single %.1f%%, married %.1f%%, widowed/divorced %.1f%%).", (bfst_wfrist[1,2]/sum(bfst_wfrist[1,]))*100, (bfst_wfrist[2,2]/sum(bfst_wfrist[2,]))*100, (bfst_wfrist[3,2]/sum(bfst_wfrist[3,]))*100)}
 # Mosaic plot
 mosaicplot(bfst_wfrist,
            xlab = "Family status",
@@ -474,7 +465,7 @@ cap_xlfi_wfrist <- sprintf(
 pander(xlfi_wfrist, caption = cap_xlfi_wfrist)
 ```
 
-```{r bivariate-xeinw-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Community Size.")}
+```{r bivariate-xeinw-wfrist-fig, fig.cap=sprintf(" Fixed-Term Agreement by Community Size. Mosaic plot showing permanent contracts dominate across all settlement sizes (small %.1f%%, medium %.1f%%, large %.1f%%, very large %.1f%%).", (xlfi_wfrist[1,2]/sum(xlfi_wfrist[1,]))*100, (xlfi_wfrist[2,2]/sum(xlfi_wfrist[2,]))*100, (xlfi_wfrist[3,2]/sum(xlfi_wfrist[3,]))*100, (xlfi_wfrist[4,2]/sum(xlfi_wfrist[4,]))*100)}
 # Mosaic plot
 mosaicplot(xlfi_wfrist,
            xlab = "Community size",
@@ -493,7 +484,7 @@ This three-way table is essential for logistic regression with multiple categori
 ```{r contingency-3d}
 # 3D contingency table
 contingency_3d <- ftable(mc_analysis$bfst, mc_analysis$xeinw, mc_analysis$wfrist)
-cap_3d <- "Three-way Cross-tabulation of Family Status, Community Size and  Fixed-Term Rental Agreements (N = 253). Essential for logistic regression with multiple categorical predictors. Permanent contracts predominate across all family status and community size combinations."
+cap_3d <- "Three-way Cross-tabulation of Family Status, Community Size, and Fixed-Term Rental Agreements (N = 253). Essential for logistic regression with multiple categorical predictors. Permanent contracts predominate across all family status and community size combinations."
 pander(contingency_3d, caption = cap_3d)
 ```
 
@@ -503,13 +494,14 @@ Across nearly all combinations of family status and community size, permanent re
 
 Among married respondents, permanent contracts dominate particularly strongly, especially in communities with $2001-10000$ inhabitants, where no fixed-term contracts are observed. In the widowed/divorced group, fixed-term contracts appear somewhat more common in communities with $2001-10000$ inhabitants than in the other community-size categories.
 
-Overall, the table points to some subgroup differences.
+However, several cells in the contingency table contain very small frequencies, with some categories having only 0 or 1 observations. This suggests that the data are too sparse for reliable subgroup comparisons.
+
 
 ## Interaction Analyses: Pairwise Predictor Effects
 
 ### Interaction 1: dstd × bfst on wfrist
 
-```{r interaction-dstd-bfst, fig.cap=" Interaction between Weekly Working Hours and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253)."}
+```{r interaction-dstd-bfst, fig.cap=" Interaction between Weekly Working Hours and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253). No strong interaction: permanent contracts dominate across all family status groups and working-hour ranges."}
 # Grouped spinogram: Weekly hours by family status (3 categories now)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$bfst)) {
@@ -534,7 +526,7 @@ Overall, the plots do not point to a strong interaction effect between weekly wo
 
 ### Interaction 2: dstd × xeinw on wfrist
 
-```{r interaction-dstd-xeinw, fig.cap=" Interaction between Weekly Working Hours and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253)."}
+```{r interaction-dstd-xeinw, fig.cap=" Interaction between Weekly Working Hours and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253). No strong interaction: permanent contracts dominate across all community sizes, smallest communities show slightly more irregular distribution."}
 # Grouped spinogram: Weekly hours by community size (4 categories)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$xeinw)) {
@@ -553,7 +545,7 @@ The grouped spinograms suggest that the relationship between weekly working hour
 
 ### Interaction 3: kjahr × bfst on wfrist
 
-```{r interaction-kjahr-bfst, fig.cap=" Interaction between Career Stage (Years Since Education) and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms for each family status category (N = 253)."}
+```{r interaction-kjahr-bfst, fig.cap=" Interaction between Career Stage (Years Since Education) and Family Status on Fixed-Term Rental Agreements. Three grouped spinograms (1×3 layout) for each family status category (N = 253). No strong interaction: permanent contracts predominate across all family status groups and career stages."}
 # Grouped spinogram: Years since education by family status (3 categories now)
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$bfst)) {
@@ -572,7 +564,7 @@ The grouped spinograms indicate that the relationship between years since educat
 
 ### Interaction 4: kjahr × xeinw on wfrist
 
-```{r interaction-kjahr-xeinw, fig.cap=" Interaction between Career Stage (Years Since Education) and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms for each settlement size category (N = 253)."}
+```{r interaction-kjahr-xeinw, fig.cap=" Interaction between Career Stage (Years Since Education) and Community Size on Fixed-Term Rental Agreements. Four grouped spinograms (2×2 layout) for each settlement size category (N = 253). No strong interaction: permanent contracts predominate across all community sizes, smallest communities show more irregular patterns."}
 # Grouped spinogram: Years since education by community size
 par(mfrow = c(2, 2))
 for (level in levels(mc_analysis$xeinw)) {
@@ -591,7 +583,7 @@ The grouped spinograms suggest that the relationship between years since educati
 
 ### Interaction 5: bfst × xeinw on wfrist (Doubledecker Plot)
 
-```{r interaction-bfst-xeinw, fig.cap=" Joint Relationship between Family Status, Community Size and  Fixed-Term Rental Agreements (Doubledecker Plot). Simultaneous display of categorical interaction (N = 253)."}
+```{r interaction-bfst-xeinw, fig.cap=" Joint Relationship between Family Status, Community Size, and Fixed-Term Rental Agreements (Doubledecker Plot). Simultaneous display of categorical interaction (N = 253). Permanent contracts dominate across all combinations; largest subgroup is single respondents in medium-sized communities."}
 mc_plot <- mc_analysis
 levels(mc_plot$bfst) <- c("single", "married", "wid/div")
 levels(mc_plot$xeinw) <- c("S", "M", "L", "VL") # S = up to 2000, M = 2001-10000, L = 10001-100000, VL = 100001+
@@ -603,49 +595,6 @@ doubledecker(wfrist ~ bfst + xeinw,
 ```
 
 The doubledecker plot illustrates the joint relationship of family status and community size with rental contract type. Across almost all combinations of family status and community size, permanent rental contracts (wfrist = no) clearly dominate over fixed-term contracts (wfrist = yes). The largest subgroup in the sample consists of single respondents, especially those living in medium-sized communities ($2001-10000$). Within each family-status group, the proportion of fixed-term contracts varies somewhat across community-size categories, but these differences are generally modest. Some more noticeable fluctuations appear in the married and widowed/divorced groups, particularly in the smallest subgroups. Overall, the plot suggests only a weak joint effect of family status and community size on rental contract type.
-
-## Contingency Table Analysis for Categorical Predictors
-
-For categorical predictors in logistic regression, contingency tables provide frequency information and allow visual inspection of the distribution of observations across categories:
-
-### Family Status × Fixed-Term Contract Type
-
-```{r contingency-bfst-wfrist}
-bfst_wfrist_tab <- table(Family_Status = mc_analysis$bfst,
-                         Fixed_Term_Contract = mc_analysis$wfrist)
-pander(bfst_wfrist_tab,
-       caption = "Contingency Table: Family Status × Fixed-Term Contract Type")
-
-# Row proportions (conditional distribution within each family status)
-pander(prop.table(bfst_wfrist_tab, margin = 1),
-       caption = "Row Proportions: Proportion of Fixed-Term Contracts by Family Status")
-```
-
-### Community Size × Fixed-Term Contract Type
-
-```{r contingency-xeinw-wfrist}
-xeinw_wfrist_tab <- table(Community_Size = mc_analysis$xeinw,
-                          Fixed_Term_Contract = mc_analysis$wfrist)
-pander(xeinw_wfrist_tab,
-       caption = "Contingency Table: Community Size × Fixed-Term Contract Type")
-
-# Row proportions (conditional distribution within each community-size group)
-pander(prop.table(xeinw_wfrist_tab, margin = 1),
-       caption = "Row Proportions: Proportion of Fixed-Term Contracts by Community Size")
-```
-
-### Family Status × Community Size (Joint Distribution)
-
-```{r contingency-bfst-xeinw}
-bfst_xeinw_tab <- table(Family_Status = mc_analysis$bfst,
-                        Community_Size = mc_analysis$xeinw)
-pander(bfst_xeinw_tab,
-       caption = "Contingency Table: Family Status × Community Size")
-```
-
-These contingency tables provide cell counts that allow verification of sufficient
-observations in every combination of categorical predictor levels—an important
-prerequisite for reliable inference in logistic regression with categorical variables.
 
 ## Summary and Transition to Analysis
 
@@ -670,10 +619,11 @@ model_naive <- glm(wfrist ~ dstd + kjahr + bfst + xeinw,
 # Summary of the naive model
 summary(model_naive)
 ```
+In the naive logistic regression model, none of the included predictors are statistically significant at the 5% level. The model has a residual deviance of $218.46$ compared to a null deviance of $224.19$, indicating only a small improvement over the intercept-only model. The AIC is $234.46$. 
+Overall, the model provides limited evidence that $dstd$, $kjahr$, $bfst$ or $xeinw$ are strong predictors of wfrist. Given the small number of observations in several subgroups, these findings should be interpreted cautiously, as sparse data may reduce statistical power and produce unstable estimates.
 
-The naive model provides a baseline for comparison. To assess the model fit and check for
-potential problems (outliers, leverage, nonlinearity), we perform diagnostic analyses using
-the DHARMa package, which is recommended for binary logistic regression:
+
+However, the naive model provides a baseline for comparison. To assess the model fit and check for potential problems (outliers, leverage, nonlinearity), we perform diagnostic analyses using the DHARMa package, which is recommended for binary logistic regression:
 
 ```{r naive-diagnostics}
 # Generate DHARMa residuals for binomial model
@@ -681,8 +631,9 @@ simulationOutput <- simulateResiduals(fittedModel = model_naive,
                                        n = 1000)
 
 # Plot diagnostics
-plot(simulationOutput, main = "DHARMa Residual Diagnostics")
+plot(simulationOutput)
 ```
+The plot of DHARMa residuals against predicted values also shows no significant problems. The residuals are spread fairly evenly across the range of predicted values, and DHARMa reports no significant pattern. This suggests that there is no clear evidence of model misspecification based on the residual diagnostics.
 
 Additionally, we examine influential observations and potential outliers:
 
@@ -702,12 +653,11 @@ if (length(influential_obs) > 0) {
          caption = "Observations with high influence on model estimates")
 }
 ```
+The influence analysis identified 23 observations with Cook’s distance values above the chosen threshold of 0.0158. This suggests that these observations have a relatively stronger influence on the estimated model coefficients compared with the rest of the data. Interestingly, all influential observations correspond to cases where the outcome wfrist is “yes”. This indicates that the model estimates may be especially sensitive to the relatively small number of “yes” cases in the dataset.
 
 ## Model Building and Variable Selection
 
-To identify the most important predictors and whether interaction terms improve the model,
-we perform model selection using multiple procedures: backward elimination, forward selection,
-and stepwise selection. We compare models based on the Akaike Information Criterion (AIC).
+To identify the most important predictors and whether interaction terms improve the model, we perform model selection using multiple procedures: backward elimination, forward selection and stepwise selection.
 
 ```{r model-selection-setup}
 # Full model with all main effects and two-way interactions
@@ -783,12 +733,8 @@ cat("\nBest model based on AIC:", best_model_name, "\n")
 cat("AIC:", model_comparison$AIC[best_model_idx], "\n")
 ```
 
-Based on the model selection results, we select the model with the lowest AIC for
-further interpretation. The following analyses are based on the selected best model:
-
 ```{r final-model-selection}
-# Use the model with lowest AIC as final model
-# (This is determined from the comparison above)
+
 if (AIC(model_backward) <= min(AIC(model_forward), AIC(model_stepwise))) {
   model_final <- model_backward
   selection_method <- "Backward"
@@ -803,14 +749,13 @@ if (AIC(model_backward) <= min(AIC(model_forward), AIC(model_stepwise))) {
 cat("Final model selected via:", selection_method, "elimination\n")
 cat("Model formula:", deparse(formula(model_final)), "\n")
 
-# Check if final model has predictors (not just intercept)
 final_terms <- length(attr(terms(model_final), "term.labels"))
 ```
+The best model based on the AIC is Backward. This result is consistent with the naive logistic regression model, where none of the predictors were statistically significant. It suggests that the available predictors do not provide meaningful explanatory power for predicting wfrist in this dataset.
 
 ### Drop Term Analysis
 
-To assess the relative importance of each term in the model and the potential
-impact of removing terms, we examine the change in AIC that would result from
+To assess the relative importance of each term in the model and the potential impact of removing terms, we examine the change in AIC that would result from
 removing each term:
 
 ```{r drop-term-analysis}
@@ -818,11 +763,10 @@ if (final_terms > 0) {
   pander(dropterm(model_final, test = "Chisq"),
          caption = "Drop Term Analysis: Effect of Removing Each Term from the Model")
 }
+print(final_terms)
 ```
 
-The Drop Term Analysis shows the AIC and likelihood-ratio test statistic for
-removing each term from the final model. A large increase in AIC or a significant
-chi-square test indicates that a term is important to model fit.
+Since the final model selected by backward elimination was the intercept-only model, there were no predictors left to evaluate. Therefore, the drop-term analysis was not performed. The value $final_terms = 0$ confirms that the final model contains no explanatory variables besides the intercept.
 
 ## Final Model Interpretation
 
@@ -834,13 +778,7 @@ summary(model_final)
 
 ### Hypothesis Testing: Likelihood-Ratio Tests
 
-To test the statistical significance of predictor terms, we perform a likelihood-ratio test comparing the final model with a null model (intercept only). The Analysis of Deviance table shows the contribution of each term:
-
-```{r final-model-anova}
-# Likelihood-ratio tests for model terms
-pander(Anova(model_final, test = "Chisq"),
-       caption = "Analysis of Deviance: Likelihood-Ratio Tests for Model Terms")
-```
+Since backward selection selected the intercept-only model (`wfrist ~ 1`), there are no predictor terms left in the final model. Therefore, likelihood-ratio tests for individual predictors are not applicable. This supports the model selection result that none of the candidate predictors improved model fit sufficiently.
 
 ### Parameter Significance and Confidence Intervals
 
@@ -879,11 +817,9 @@ coef_table <- data.frame(
 pander(coef_table,
        caption = "Final Model: Parameter Estimates and 95% Confidence Intervals")
 ```
+The final model contains only the intercept, with an estimate of 1.643 and a 95% confidence interval from 1.309 to 1.977. This indicates that the overall baseline outcome is statistically significant, but no predictor effects are estimated because all predictors were removed during model selection.
 
 ### Odds Ratios
-
-For logistic regression, the exponentiated coefficients represent odds ratios, which
-describe how the odds of a fixed-term contract change with changes in predictors:
 
 ```{r final-model-odds-ratios}
 # Calculate odds ratios and their confidence intervals
@@ -900,15 +836,8 @@ odds_table <- data.frame(
 pander(odds_table,
        caption = "Final Model: Odds Ratios and 95% Confidence Intervals")
 ```
+The final model includes only the intercept, with an odds ratio of 5.171 and a 95% confidence interval from 3.701 to 7.224. This shows the overall odds of the outcome in the sample, but it does not represent the effect of any predictor because no predictors were retained in the final model.
 
-The odds ratio interpretation depends on the predictor type:
-
-- **For metric predictors (dstd, kjahr)**: An odds ratio > 1 indicates that a
-one-unit increase in the predictor increases the odds of a fixed-term contract;
-an odds ratio < 1 indicates a decrease in odds.
-
-- **For categorical predictors (bfst, xeinw)**: Odds ratios represent the odds of
-a fixed-term contract in a given category relative to the reference category.
 
 ### Effect Plots
 
@@ -916,78 +845,29 @@ Effect plots provide a visual representation of how predicted probabilities of a
 fixed-term rental agreement change across the range of predictors:
 
 ```{r effect-plots}
-if (final_terms > 0) {
-  # Generate effect plots for all terms in the final model
-  allEffects_final <- allEffects(model_final)
+p1 <- plot(ggpredict(model_naive, terms = "dstd")) +
+  labs(title = "Weekly working hours", x = "Weekly working hours", y = "Predicted probability")
 
-  # Plot effects
-  plot(allEffects_final,
-       main = "Predicted Probability of Fixed-Term Rental Agreement")
-} else {
-  cat("Note: The final model contains only an intercept (no predictors).",
-      "Effect plots cannot be generated for models with no terms.\n")
-}
+p2 <- plot(ggpredict(model_naive, terms = "kjahr")) +
+  labs(title = "Years since education completion", x = "Years since education completion", y = "Predicted probability")
+
+p3 <- plot(ggpredict(model_naive, terms = "bfst")) +
+  labs(title = "Family status", x = "Family status", y = "Predicted probability")
+
+p4 <- plot(ggpredict(model_naive, terms = "xeinw")) +
+  labs(title = "Community size", x = "Community size", y = "Predicted probability")
+
+(p1 + p2) / (p3 + p4)
 ```
-
-#### Alternative Visualization: Binomial Regression Plot
-
-An alternative representation using the `binreg_plot()` function from the `vcd`
-package provides confidence bands for predicted probabilities:
-
-```{r binreg-plot}
-if (final_terms > 0) {
-  binreg_plot(model_final, pred_range = "xlim",
-              col_bands = colorspace:::rainbow_hcl(1, alpha = 0.5),
-              main = "Predicted Probability of Fixed-Term Rental Agreement")
-}
-```
-
-These plots show the predicted probability of a fixed-term rental agreement while
-holding other predictors at their mean (for metric predictors) or modal category
-(for categorical predictors). The `binreg_plot()` visualization includes confidence
-bands that indicate the uncertainty in predictions across the range of predictors.
+Since the final selected model was the intercept-only model, effect plots cannot be shown for the final model. Therefore, effect plots from the naive model are presented for descriptive purposes. The plots show that the confidence intervals are wide and mostly overlapping. Therefore, the plots do not provide strong evidence that working hours, years since education completion, family status, or community size clearly affect the probability of the outcome.
 
 ## Model Diagnostics for Final Model
 
-We repeat diagnostic checks for the final selected model to ensure it does not
-violate key assumptions. We begin with diagnostic plots from the `car` package:
+## Model Diagnostics for Final Model
 
-### Residual Plots and Lack-of-Fit Tests
+The final selected model is an intercept-only model (`wfrist ~ 1`). Therefore, diagnostic plots that assess predictor-specific patterns, such as residual plots for metric predictors or influence plots based on leverage, are not applicable. Since the model contains no explanatory variables, there are no predictor effects or functional forms to diagnose.
 
-```{r final-model-residual-plots}
-# Residual plots with lack-of-fit tests for metric predictors
-if (final_terms > 0) {
-  residualPlots(model_final,
-                main = "Residual Plots with Lack-of-Fit Tests")
-}
-```
-
-The residual plots above show scaled residuals for each metric predictor. The
-smooth curves (colored lines) indicate potential nonlinear patterns. Associated
-curvature lack-of-fit tests help identify if the linear predictor specification
-is adequate.
-
-### Influence and Leverage Analysis
-
-```{r final-model-influence}
-# Index plot of influence measures
-if (final_terms > 0) {
-  influenceIndexPlot(model_final,
-                     main = "Index Plot of Influence Measures")
-}
-```
-
-```{r final-model-influence-plot}
-# Influence plot: combines leverage and residuals
-if (final_terms > 0) {
-  influencePlot(model_final,
-                main = "Influence Plot: Leverage vs. Residuals")
-}
-```
-
-These plots identify observations that may have unusual influence on model
-estimates. Observations with high Cook's D or large standardized residuals
-warrant closer examination.
+However, simulation-based diagnostics can still be used to assess whether the overall model structure is appropriate.
 
 ### DHARMa Simulation-Based Diagnostics
 
@@ -999,21 +879,11 @@ simulationOutput_final <- simulateResiduals(fittedModel = model_final,
 plot(simulationOutput_final,
      main = "DHARMa Diagnostics: Final Model")
 ```
+The DHARMa diagnostics suggest that the final intercept-only model fits the overall outcome distribution. No significant problems were detected for residual uniformity, dispersion, or outliers. However, because the model contains no predictors, these diagnostics only assess the overall model fit and not any predictor effects.
 
 ### Posterior Predictive Check
 
-A posterior predictive check compares the observed data with data simulated from
-the fitted model to identify any systematic discrepancies. We use the standardized
-`check_predictions()` function from the `performance` package:
-
-```{r posterior-predictive-check}
-# Standardized posterior predictive checks
-if (final_terms > 0) {
-  check_predictions(model_final, type = "discrete_both")
-}
-```
-
-Additionally, we perform a manual comparison of observed vs. simulated outcomes:
+Manual comparison of observed vs. simulated outcomes:
 
 ```{r posterior-predictive-manual}
 # Simulate data from the final model
@@ -1052,147 +922,40 @@ abline(v = obs_fixed_term, col = "red", lwd = 2,
        label = "Observed")
 legend("topright", legend = "Observed", col = "red", lwd = 2)
 ```
+The posterior predictive check indicates that the observed number of modeled outcome cases falls within the simulated distribution. This suggests that the intercept-only model captures the overall outcome proportion in the sample. However, since the model contains no predictors, this check does not provide evidence about differences between subgroups.
 
 ## Relating Results to Research Questions
 
 The fitted logistic regression model addresses the primary research question:
-**Which factors predict whether a renter in Southern Austria has a fixed-term or
-permanent rental agreement?**
+**Which factors predict whether a renter in Southern Austria has a fixed-term or permanent rental agreement?**
 
-Based on the final model results:
+Based on the model comparison, the final selected model was the intercept-only model. This means that none of the tested predictors - weekly working hours, years since education completion, family status, or community size - improved the prediction of rental contract type enough to be retained in the final model.
 
-- The **statistical significance** of parameters indicates which predictors have
-meaningful population-level effects on rental contract type.
+Therefore, the results do not provide strong evidence that these variables are meaningful predictors of rental contract type in this sample. The odds ratio of the final model only reflects the overall distribution of the outcome, showing that permanent rental agreements were much more common than fixed-term agreements.
 
-- The **effect sizes** (odds ratios) quantify the magnitude of these effects,
-showing how much the odds of a fixed-term contract change per unit increase in
-metric predictors or across categories of categorical predictors.
+The effect plots from the naive model were included for descriptive purposes. They showed only weak and uncertain patterns, with wide and overlapping confidence intervals. This supports the model selection result that the predictors did not show clear effects.
 
-- **Interaction terms** (if retained in the final model) reveal whether the effect
-of one predictor depends on the level of another predictor.
+Overall, the findings do not strongly support the initial expectation that the selected social and regional factors would predict rental contract type. However, the results should be interpreted cautiously because the data were imbalanced and several subgroups contained small numbers of observations.
 
-- The **effect plots** visually demonstrate the predicted patterns across the range
-of observed values.
+# Summary
 
-These findings either confirm or challenge the initial hypotheses stated in the
-Introduction regarding the relationship between each predictor and rental contract type.
+This report examined whether weekly working hours, years since education completion, family status, and community size predict whether renters in Southern Austria have a fixed-term or permanent rental agreement. The analysis used Austrian microcensus data from 2012 and focused on renters in Carinthia and Styria.
 
-# Conclusion and Criticism
+First, the data was cleaned and restricted to complete cases, resulting in a final sample of 253 respondents. Descriptive analyses showed that permanent rental agreements were much more common than fixed-term agreements. Only 41 respondents (16.2%) had a fixed-term contract, while 212 respondents (83.8%) had a permanent contract.
 
-## Summary
+The bivariate and interaction analyses showed only weak relationships between the predictors and rental contract type. Permanent contracts dominated across nearly all groups. Some differences were visible for family status and community size, but these patterns were generally small and often based on sparse subgroup counts.
 
-This report presents a complete regression analysis of factors associated with
-fixed-term versus permanent rental agreements among renters in Southern Austria,
-using data from the 2012 Austrian microcensus. The analysis proceeded in two phases:
+A binary logistic regression model was then fitted. The naive model included all main effects, but none of the predictors were statistically significant. Different model selection procedures were compared using AIC. The backward selection procedure selected the intercept-only model as the best model, with the lowest AIC. This means that none of the tested predictors improved the prediction of rental contract type enough to remain in the final model.
 
-**Descriptive Phase** (completed in the interim report): We characterized the sample
-of `r n_total` renters with respect to the response variable (wfrist) and four
-predictors (weekly working hours, years since education completion, family status,
-and community size). Bivariate and interaction visualizations revealed that permanent
-contracts clearly dominate the sample, with only modest bivariate relationships
-between most predictors and contract type.
+Therefore, the research question can be answered as follows: in this sample, weekly working hours, years since education completion, family status, and community size do not provide strong evidence for predicting whether a renter has a fixed-term or permanent rental agreement. The final model mainly reflects the overall distribution of the outcome, where permanent contracts are much more common than fixed-term contracts.
 
-**Inferential Phase** (this section): We fitted a series of logistic regression
-models to test whether the observed associations are statistically meaningful at
-the population level. Model selection (backward, forward, and stepwise elimination)
-identified the most parsimonious model balancing statistical fit and complexity.
-The final model was then examined for violations of key assumptions using modern
-diagnostic tools (DHARMa residuals, influence measures) and evaluated through
-effect plots and posterior predictive checks.
+There are several limitations. The outcome variable is imbalanced, with relatively few fixed-term contracts. In addition, several combinations of family status and community size contain very small numbers of observations, including some cells with zero or one fixed-term case. This makes subgroup comparisons less reliable and may reduce the statistical power of the regression models. The influence analysis also showed that several “yes” cases had relatively high influence on the model estimates, suggesting that the results may be sensitive to a small number of observations.
 
-Our findings address the research question by identifying which predictors—among
-those available in the microcensus—meaningfully predict rental contract type in
-Southern Austria. The parameter estimates, confidence intervals, and odds ratios
-provide quantitative evidence of the direction and magnitude of these associations.
+The model diagnostics did not show serious technical problems. DHARMa diagnostics indicated no major issues with residual uniformity, dispersion, or outliers. The posterior predictive check suggested that the final intercept-only model captures the overall outcome proportion reasonably well. However, because the final model contains no predictors, these diagnostics only assess the overall fit and not differences between groups.
 
-## Possible Problems
+The analysis is based only on a subset of renters in Southern Austria from 2012, and the final sample size is relatively small. Therefore, the results should not be interpreted as general evidence for all Austrian renters or for current rental markets.
 
-### Data Problems
-
-- **Sparse categories**: The response variable is highly imbalanced, with only
-`r pct_fixed_term`% of renters having fixed-term contracts. This imbalance may
-reduce the precision of parameter estimates for the fixed-term category and can
-challenge model diagnostics.
-
-- **Limited geographic scope**: The analysis is restricted to Southern Austria
-(NUTS-1 region 2: Carinthia and Styria). Rental market conditions, legal frameworks,
-and housing dynamics may differ substantially in other Austrian regions, limiting
-the generalizability of findings.
-
-- **Temporal limitation**: The microcensus data are from 2012. Housing and labor
-markets have evolved significantly in the past decade, so findings may not reflect
-current conditions.
-
-- **Measurement and missing values**: The original dataset contained missing values
-coded as -3, which were treated as NA. The final sample of `r n_total` observations
-excludes any cases with missing information on any variable, which may introduce
-bias if missingness is not random.
-
-### Analysis Problems
-
-- **Multicollinearity**: Relationships among predictors (e.g., between family status
-and community size) were not formally tested. High multicollinearity could inflate
-standard errors and reduce precision of parameter estimates.
-
-- **Model diagnostics**: While DHARMa provides improved residual diagnostics for
-binomial models, the extremely imbalanced response variable may still challenge
-standard diagnostic procedures. Visual inspection of diagnostic plots should be
-interpreted cautiously.
-
-- **Effect plots**: The predicted probabilities displayed in effect plots should be
-interpreted as population-level averages. Individual predictions may be unreliable
-given the class imbalance and modest effect sizes.
-
-## Generalizability of Findings
-
-The findings are most credibly generalized to renters in Carinthia and Styria
-during the period of the 2012 microcensus survey. Extrapolation beyond this scope
-faces several limitations:
-
-1. **Geographic generalizability**: Results may not apply to other Austrian regions
-with different housing markets, legal environments, or economic conditions.
-
-2. **Temporal generalizability**: Housing and labor markets have changed substantially
-since 2012. Current patterns of rental contracts may differ significantly from those
-documented in this analysis.
-
-3. **Population generalizability**: The analysis includes all renters in Southern
-Austria but excludes non-renters and those with incomplete data. The role of rental
-contract type among non-renters (owner-occupants, homeless individuals) remains
-unknown.
-
-4. **Causal interpretation**: This analysis is observational and cross-sectional.
-Associations between predictors and contract type do not establish causality and
-may be confounded by unmeasured variables.
-
-## Possible Further Questions
-
-Based on the results of this analysis, several directions for future research are
-suggested:
-
-- **Temporal dynamics**: Longitudinal or repeated cross-sectional data would permit
-analysis of how rental contract patterns have changed over time and whether the
-predictive factors identified in this analysis remain stable.
-
-- **Causal mechanisms**: Qualitative research or randomized experiments could explore
-the mechanisms underlying observed associations. For example, does family status
-causally influence contract type, or do both reflect underlying economic circumstances?
-
-- **Geographic comparison**: Multi-regional analysis could test whether the predictive
-factors identified in Southern Austria also operate in other Austrian regions or
-whether regional housing markets are characterized by distinct dynamics.
-
-- **Interaction deepening**: More granular investigation of interaction effects
-(using stratified analyses, multilevel models, or machine learning approaches) could
-reveal how the interplay among multiple factors shapes rental contract type.
-
-- **Additional predictors**: Integration of additional variables (e.g., income,
-employment type, housing quality, neighborhood characteristics) could improve model
-fit and provide richer insights into the determinants of rental contract type.
-
-- **Alternative outcomes**: Analysis of related outcomes (e.g., rent burden, housing
-satisfaction, residential mobility) could broaden understanding of how fixed-term
-contracts affect renters' overall housing experiences.
+Further research could use a larger sample, include additional predictors such as income, age, employment status, household size or housing costs, and compare different Austrian regions. It may also be useful to analyze more recent data to examine whether predictors of fixed-term rental agreements have changed over time.
 
 # References
 
